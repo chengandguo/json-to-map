@@ -23,7 +23,7 @@ const obj = JSON.parse(9007199254740999);
 console.log(obj); // output: 9007199254741000 精度丢失
 ```
 
-针对问题 1，解析 JSON 字符串转换为 Map，Map 的插入顺序即为 JSON 字符串顺序，保证有序性。
+针对问题 1，解析 JSON 字符串转换为 Map，Map 的插入顺序即为 JSON 字符串顺序，保证有序性。  
 针对问题 2，解析 JSON 字符串时，可以将超出精度的整数解析为字符串，保证精度问题。
 后面做反向转换时，可以根据 JSON Schema 定义的数据类型做反向序列化
 
@@ -185,3 +185,8 @@ output:
 }
 */
 ```
+
+# 感谢
+
+这个库基于 [json-bigint](https://www.npmjs.com/package/json-bigint)，在此对作者 sidorares 表示深深的谢意。
+代码简洁明了的实现了一个自顶向下的 JSON 解析器

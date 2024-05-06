@@ -1,8 +1,9 @@
-#json-to-map
+# json-to-map
 
 This library mainly solves the following 2 problems of JSON parsing
+[查看中文文档](https://github.com/chengandguo/json-to-map/blob/main/readme-zh.md)
 
-1. When parsing `JSON` containing numeric `key`, in the parsed object, all numeric `key` will be arranged in order from small to large.
+1. When parsing `JSON` containing numeric `key`, in the parsed object, all numeric `key` will be arranged in order from small to large.  
    This will cause diff data problems in scenarios such as JSON diff. See the example below:
 
 ```ts
@@ -23,7 +24,7 @@ const obj = JSON.parse(9007199254740999);
 console.log(obj); // output: 9007199254741000 precision lost
 ```
 
-For question 1, parse the JSON string and convert it into a Map. The insertion order of the Map is the JSON string order, ensuring orderliness.
+For question 1, parse the JSON string and convert it into a Map. The insertion order of the Map is the JSON string order, ensuring orderliness.  
 Regarding question 2, when parsing JSON strings, integers that exceed the precision can be parsed into strings to ensure accuracy.
 When doing reverse conversion later, reverse serialization can be done based on the data type defined by JSON Schema.
 
@@ -186,7 +187,6 @@ output:
 */
 ```
 
-# 说明
+# Thanks
 
-这个库基于 [json-bigint](https://www.npmjs.com/package/json-bigint)，在此对作者 sidorares 表示深深的谢意。
-代码简洁明了的实现了一个自顶向下的 JSON 解析器
+This library is based on [json-bigint](https://www.npmjs.com/package/json-bigint), and heartfelt thanks to the author sidorares for his work. The code implements a clear and concise top-down JSON parser.
