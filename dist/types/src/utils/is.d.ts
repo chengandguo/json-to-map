@@ -12,3 +12,4 @@ export declare function isUndefined(obj: unknown): obj is undefined;
 export declare function isNull(obj: unknown): obj is null;
 export declare function isNullOrUndefined(obj: unknown): boolean;
 export declare function isFunction(obj: unknown): obj is (...args: unknown[]) => unknown;
+export declare function isMap(obj: unknown): obj is unknown[];

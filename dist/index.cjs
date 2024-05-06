@@ -1,64 +1,9 @@
 'use strict';
 
-const DATA_TYPE = {
-    STRING: "string",
-    NUMBER: "number",
-    BOOLEAN: "boolean",
-    NULL: "null",
-    OBJECT: "object",
-    ARRAY: "array",
-};
-
-function isArray(obj) {
-    return Object.prototype.toString.call(obj) === "[object Array]";
-}
-function isObject(obj) {
-    return Object.prototype.toString.call(obj) === "[object Object]";
-}
-function isString(obj) {
-    return Object.prototype.toString.call(obj) === "[object String]";
-}
-function isNumber(obj) {
-    return (Object.prototype.toString.call(obj) === "[object Number]" && obj === obj);
-}
-function isBoolean(obj) {
-    return Object.prototype.toString.call(obj) === "[object Boolean]";
-}
-function isFunction(obj) {
-    return typeof obj === "function";
-}
-
-function extractObjValue(obj) {
-    if (!isObject(obj)) {
-        throw new Error(`obj: ${obj} should be an object with type and field properties`);
-    }
-    switch (obj.type) {
-        case DATA_TYPE.OBJECT: {
-            if (!isObject(obj.value)) {
-                throw new Error(`obj.type is object, obj.value: ${obj.value} doesn't match`);
-            }
-            const result = {};
-            for (const [key, value] of Object.entries(obj.value)) {
-                result[key] = extractObjValue(value);
-            }
-            return result;
-        }
-        case DATA_TYPE.ARRAY: {
-            if (!isArray(obj.value)) {
-                throw new Error(`obj.type is array, obj.value: ${obj.value} doesn't match`);
-            }
-            const result = [];
-            for (const value of obj.value) {
-                result.push(extractObjValue(value));
-            }
-            return result;
-        }
-        default:
-            return obj.value;
-    }
-}
-
-const jsonParse = function (source, options) {
+/*members "", "\"", "\/", "\\", at, b, call, charAt, f, fromCharCode,
+    hasOwnProperty, message, n, name, prototype, push, r, t, text
+*/
+const parseJsonToMap = function (source, options) {
     // regexpxs extracted from
     // (c) BSD-3-Clause
     // https://github.com/fastify/secure-json-parse/graphs/contributors and https://github.com/hapijs/bourne/graphs/contributors
@@ -179,18 +124,14 @@ const jsonParse = function (source, options) {
         }
         else {
             if (_options.storeAsString) {
-                return { type: "string", originType: "number", value: string };
+                return string;
             }
             if (Number.isSafeInteger(number))
                 if (_options.alwaysParseAsBigInt) {
-                    return {
-                        type: "number",
-                        originType: "number",
-                        value: BigInt(number),
-                    };
+                    return BigInt(number);
                 }
                 else {
-                    return { type: "number", originType: "number", value: number };
+                    return number;
                 }
             // Number with fractional part should be treated as number(double) including big integers in scientific notation, i.e 1.79e+308
             else {
@@ -201,7 +142,7 @@ const jsonParse = function (source, options) {
                 else {
                     result = BigInt(string);
                 }
-                return { type: "number", originType: "number", value: result };
+                return result;
             }
         }
     };
@@ -219,7 +160,7 @@ const jsonParse = function (source, options) {
                     if (at - 1 > startAt)
                         string += text.substring(startAt, at - 1);
                     next();
-                    return { type: "string", originType: "string", value: string };
+                    return string;
                 }
                 if (ch === "\\") {
                     if (at - 1 > startAt)
@@ -262,27 +203,27 @@ const jsonParse = function (source, options) {
                 next("r");
                 next("u");
                 next("e");
-                return { type: "boolean", originType: "boolean", value: true };
+                return true;
             case "f":
                 next("f");
                 next("a");
                 next("l");
                 next("s");
                 next("e");
-                return { type: "boolean", originType: "boolean", value: false };
+                return false;
             case "n":
                 next("n");
                 next("u");
                 next("l");
                 next("l");
-                return { type: "null", originType: "null", value: null };
+                return null;
         }
         error("Unexpected '" + ch + "'");
     };
     let value; // Place holder for the value function.
     const array = function () {
         // Parse an array value.
-        const array = { type: "array", originType: "array", value: [] };
+        const array = [];
         if (ch === "[") {
             next("[");
             white();
@@ -291,7 +232,7 @@ const jsonParse = function (source, options) {
                 return array; // empty array
             }
             while (ch) {
-                array.value.push(value());
+                array.push(value());
                 white();
                 if (ch === "]") {
                     next("]");
@@ -306,20 +247,19 @@ const jsonParse = function (source, options) {
     const object = function () {
         // Parse an object value.
         let key;
-        const object = { type: "object", originType: "object", value: {} };
+        const map = new Map();
         if (ch === "{") {
             next("{");
             white();
             if (ch === "}") {
                 next("}");
-                return object; // empty object
+                return map; // empty object
             }
             while (ch) {
-                key = string()?.value;
+                key = string();
                 white();
                 next(":");
-                if (_options.strict === true &&
-                    Object.hasOwnProperty.call(object.value, key)) {
+                if (_options.strict === true && map.has(key)) {
                     error('Duplicate key "' + key + '"');
                 }
                 if (suspectProtoRx.test(key) === true) {
@@ -330,7 +270,7 @@ const jsonParse = function (source, options) {
                         value();
                     }
                     else {
-                        object.value[key] = value();
+                        map.set(key, value());
                     }
                 }
                 else if (suspectConstructorRx.test(key) === true) {
@@ -341,16 +281,16 @@ const jsonParse = function (source, options) {
                         value();
                     }
                     else {
-                        object.value[key] = value();
+                        map.set(key, value());
                     }
                 }
                 else {
-                    object.value[key] = value();
+                    map.set(key, value());
                 }
                 white();
                 if (ch === "}") {
                     next("}");
-                    return object;
+                    return map;
                 }
                 next(",");
                 white();
@@ -381,14 +321,29 @@ const jsonParse = function (source, options) {
     text = source + "";
     at = 0;
     ch = " ";
-    const dataSchema = value();
-    const data = extractObjValue(dataSchema);
+    const data = value();
     white();
     if (ch) {
         error("Syntax error");
     }
-    return { data, dataSchema };
+    return data;
 };
+
+function isArray(obj) {
+    return Object.prototype.toString.call(obj) === "[object Array]";
+}
+function isObject(obj) {
+    return Object.prototype.toString.call(obj) === "[object Object]";
+}
+function isString(obj) {
+    return Object.prototype.toString.call(obj) === "[object String]";
+}
+function isFunction(obj) {
+    return typeof obj === "function";
+}
+function isMap(obj) {
+    return Object.prototype.toString.call(obj) === "[object Map]";
+}
 
 function quote(str) {
     // If the string contains no control characters, no quote characters, and no
@@ -426,7 +381,7 @@ function quote(str) {
     lastIndex, length, parse, prototype, push, replace, slice, stringify,
     test, toJSON, toString, valueOf
 */
-function jsonStringify(value, replacer, space) {
+function mapStringify(value, replacer, space) {
     let gap = "";
     let indent = "";
     // common JSON.stringify with maximum 10 limit, but it is not necessary
@@ -446,7 +401,7 @@ function jsonStringify(value, replacer, space) {
         let i, // The loop counter.
         k, // The member key.
         v, // The member value.
-        length, partial, value = holder[key];
+        length, partial, value = isMap(holder) ? holder.get(key) : holder[key];
         const mind = gap;
         // If the value has a toJSON method, call it to obtain a replacement value.
         if (value && isObject(value) && isFunction(value.toJSON)) {
@@ -514,9 +469,18 @@ function jsonStringify(value, replacer, space) {
                         }
                     }
                 }
-                else {
-                    // Otherwise, iterate through all of the keys in the object.
+                else if (isObject(value)) {
+                    // iterate through all of the keys in the object.
                     Object.keys(value).forEach(function (k) {
+                        const v = walk(k, value);
+                        if (v) {
+                            partial.push(quote(k) + (gap ? ": " : ":") + v);
+                        }
+                    });
+                }
+                else {
+                    // map type
+                    value.forEach(function (_, k) {
                         const v = walk(k, value);
                         if (v) {
                             partial.push(quote(k) + (gap ? ": " : ":") + v);
@@ -544,138 +508,5 @@ function jsonStringify(value, replacer, space) {
     return walk("", { "": value });
 }
 
-// data schema if is array
-function jsonStringifyByDataSchema(obj, schema, space) {
-    let gap = "";
-    if (isNumber(space)) {
-        gap = " ".repeat(space);
-    }
-    else if (isString(space)) {
-        gap = space;
-    }
-    const jsonStringify = (obj, schema, indentLevel = 0) => {
-        if (isString(obj)) {
-            if (schema?.originType === "number") {
-                return `${obj}`;
-            }
-            else {
-                return quote(obj);
-            }
-        }
-        if (obj === null || isNumber(obj) || isBoolean(obj)) {
-            return `${obj}`;
-        }
-        const currentIndentChars = gap.repeat(indentLevel * 2);
-        const nextIndentChars = gap.repeat((indentLevel + 1) * 2);
-        if (Array.isArray(obj)) {
-            if (!obj.length) {
-                return "[]";
-            }
-            let result = gap ? "[\n" : "[";
-            for (const [index, item] of obj.entries()) {
-                const value = jsonStringify(item, schema?.value?.[index], indentLevel + 1);
-                result += `${nextIndentChars}${value}`;
-                if (index !== value.length - 1) {
-                    result += gap ? ",\n" : ",";
-                }
-                else {
-                    result += gap ? "\n" : "";
-                }
-            }
-            result += `${currentIndentChars}]`;
-            return result;
-        }
-        if (isObject(obj)) {
-            const keys = Object.keys(obj);
-            if (!keys.length) {
-                return "{}";
-            }
-            let result = gap ? "{\n" : "{";
-            for (const [index, key] of keys.entries()) {
-                const value = jsonStringify(obj[key], schema?.value?.[key], indentLevel + 1);
-                // if there is gap, give one space between key and value
-                const SPACE = gap ? " " : "";
-                result += `${nextIndentChars}"${key}":${SPACE}${value}`;
-                if (index !== keys.length - 1) {
-                    result += gap ? ",\n" : ",";
-                }
-                else {
-                    result += gap ? "\n" : "";
-                }
-            }
-            result += `${currentIndentChars}}`;
-            return result;
-        }
-    };
-    return jsonStringify(obj, schema);
-}
-
-function jsonStringifyByJsonSchema(obj, jsonSchema, space) {
-    let gap = "";
-    if (isNumber(space)) {
-        gap = " ".repeat(space);
-    }
-    else if (isString(space)) {
-        gap = space;
-    }
-    const jsonStringify = (obj, jsonSchema, indentLevel = 0) => {
-        if (isString(obj)) {
-            if (jsonSchema?.type === "number") {
-                return `${obj}`;
-            }
-            else {
-                return quote(obj);
-            }
-        }
-        if (obj === null || isNumber(obj) || isBoolean(obj)) {
-            return `${obj}`;
-        }
-        const currentIndentChars = gap.repeat(indentLevel * 2);
-        const nextIndentChars = gap.repeat((indentLevel + 1) * 2);
-        if (Array.isArray(obj)) {
-            if (!obj.length) {
-                return "[]";
-            }
-            let result = gap ? "[\n" : "[";
-            for (const [index, item] of obj.entries()) {
-                const value = jsonStringify(item, jsonSchema?.items, indentLevel + 1);
-                result += `${nextIndentChars}${value}`;
-                if (index !== value.length - 1) {
-                    result += gap ? ",\n" : ",";
-                }
-                else {
-                    result += gap ? "\n" : "";
-                }
-            }
-            result += `${currentIndentChars}]`;
-            return result;
-        }
-        if (isObject(obj)) {
-            const keys = Object.keys(obj);
-            if (!keys.length) {
-                return "{}";
-            }
-            let result = gap ? "{\n" : "{";
-            for (const [index, key] of keys.entries()) {
-                const value = jsonStringify(obj[key], jsonSchema?.properties?.[key], indentLevel + 1);
-                // if there is gap, give one space between key and value
-                const SPACE = gap ? " " : "";
-                result += `${nextIndentChars}"${key}":${SPACE}${value}`;
-                if (index !== keys.length - 1) {
-                    result += gap ? ",\n" : ",";
-                }
-                else {
-                    result += gap ? "\n" : "";
-                }
-            }
-            result += `${currentIndentChars}}`;
-            return result;
-        }
-    };
-    return jsonStringify(obj, jsonSchema);
-}
-
-exports.jsonParse = jsonParse;
-exports.jsonStringify = jsonStringify;
-exports.jsonStringifyByDataSchema = jsonStringifyByDataSchema;
-exports.jsonStringifyByJsonSchema = jsonStringifyByJsonSchema;
+exports.mapStringify = mapStringify;
+exports.parseJsonToMap = parseJsonToMap;
